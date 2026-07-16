@@ -9,7 +9,7 @@ An interactive, GPU-rendered cosmic nebula that flows, glows, and reacts to you 
 ![NEBULA](docs/hero.jpg)
 
 <!-- LIVE_DEMO -->
-_▶ Live demo link is added after the first Vercel deploy._
+### ▶ [**Launch NEBULA**](https://nebula-lyart-psi.vercel.app)
 
 </div>
 
