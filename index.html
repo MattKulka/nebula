@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NEBULA — a living field</title>
+<style>
+  :root{
+    --ink: #e9ecff;
+    --panel: rgba(12,14,28,0.42);
+    --panel-brd: rgba(160,170,255,0.16);
+    --accent: #8ea0ff;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; overflow:hidden; background:#05060c; }
+  body{
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    touch-action:none;
+  }
+  #stage{ position:fixed; inset:0; display:block; width:100%; height:100%; }
+  #stage:active{ cursor:grabbing; }
+
+  /* ---- HUD ---- */
+  .hud{
+    position:fixed; top:16px; left:16px; z-index:10;
+    width:236px; max-width:calc(100vw - 32px);
+    background:var(--panel);
+    border:1px solid var(--panel-brd);
+    border-radius:16px;
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+    padding:14px 15px 15px;
+    transition: opacity .5s ease, transform .5s ease;
+    user-select:none;
+  }
+  .hud.hidden{ opacity:0; transform:translateY(-8px); pointer-events:none; }
+  .title{
+    font-size:13px; letter-spacing:.34em; font-weight:600;
+    display:flex; align-items:center; gap:8px; margin-bottom:2px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 12px var(--accent); animation: pulse 2.6s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.5; transform:scale(.85)} 50%{opacity:1; transform:scale(1.15)} }
+  .sub{ font-size:9.5px; letter-spacing:.14em; opacity:.5; margin-bottom:13px; text-transform:uppercase; }
+
+  .row{ margin:11px 0; }
+  .row label{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:.1em;
+    text-transform:uppercase; opacity:.72; margin-bottom:6px; }
+  .row label b{ opacity:.9; font-weight:600; color:var(--accent); }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:3px; border-radius:3px;
+    background:linear-gradient(90deg, var(--accent) var(--fill,50%), rgba(255,255,255,0.12) var(--fill,50%));
+    outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:#fff; box-shadow:0 0 0 3px rgba(142,160,255,0.28), 0 2px 8px rgba(0,0,0,.5); cursor:grab;
+  }
+  input[type=range]::-moz-range-thumb{ width:14px; height:14px; border:none; border-radius:50%;
+    background:#fff; box-shadow:0 0 0 3px rgba(142,160,255,0.28); cursor:grab; }
+
+  .palettes{ display:flex; gap:7px; margin-top:4px; }
+  .sw{ flex:1; height:22px; border-radius:7px; border:1px solid rgba(255,255,255,0.14);
+    cursor:pointer; position:relative; transition:transform .15s ease, box-shadow .2s ease; }
+  .sw:hover{ transform:translateY(-2px); }
+  .sw.on{ box-shadow:0 0 0 2px var(--ink), 0 4px 14px rgba(0,0,0,.4); }
+
+  .btns{ display:flex; gap:7px; margin-top:14px; }
+  .btn{ flex:1; font-family:inherit; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink); background:rgba(255,255,255,0.05); border:1px solid var(--panel-brd);
+    border-radius:9px; padding:8px 4px; cursor:pointer; transition:background .18s ease, transform .1s ease; }
+  .btn:hover{ background:rgba(142,160,255,0.18); }
+  .btn:active{ transform:scale(.95); }
+
+  .hint{ position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:9;
+    font-size:10px; letter-spacing:.22em; text-transform:uppercase; opacity:.34;
+    text-align:center; pointer-events:none; transition:opacity .6s ease; width:max-content; max-width:92vw; }
+  .fade{ opacity:0 !important; }
+
+  .toggle{ position:fixed; top:16px; right:16px; z-index:10; width:38px; height:38px; border-radius:12px;
+    background:var(--panel); border:1px solid var(--panel-brd); color:var(--ink); cursor:pointer;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size:15px;
+    display:grid; place-items:center; transition:background .18s ease; }
+  .toggle:hover{ background:rgba(142,160,255,0.18); }
+
+  .oops{ position:fixed; inset:0; display:none; place-items:center; text-align:center; padding:24px;
+    font-size:13px; letter-spacing:.1em; line-height:1.8; z-index:20; }
+  .oops.show{ display:grid; }
+</style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div class="hud" id="hud">
+    <div class="title"><span class="dot"></span>NEBULA</div>
+    <div class="sub">a living field</div>
+
+    <div class="row">
+      <label>Flow <b id="v-flow">1.0</b></label>
+      <input type="range" id="flow" min="0" max="3" step="0.01" value="1">
+    </div>
+    <div class="row">
+      <label>Detail <b id="v-detail">0.7</b></label>
+      <input type="range" id="detail" min="0" max="2" step="0.01" value="0.7">
+    </div>
+    <div class="row">
+      <label>Chaos <b id="v-chaos">0.4</b></label>
+      <input type="range" id="chaos" min="0" max="2" step="0.01" value="0.4">
+    </div>
+    <div class="row">
+      <label>Glow <b id="v-glow">1.0</b></label>
+      <input type="range" id="glow" min="0" max="2" step="0.01" value="1">
+    </div>
+
+    <div class="row">
+      <label>Palette</label>
+      <div class="palettes" id="palettes"></div>
+    </div>
+
+    <div class="btns">
+      <button class="btn" id="rand">Randomize</button>
+      <button class="btn" id="pause">Pause</button>
+    </div>
+    <div class="btns">
+      <button class="btn" id="save">Save frame</button>
+      <button class="btn" id="full">Fullscreen</button>
+    </div>
+  </div>
+
+  <button class="toggle" id="toggle" title="Hide panel (H)">✦</button>
+
+  <div class="hint" id="hint">drag to stir · click to pulse · H to hide · F fullscreen</div>
+
+  <div class="oops" id="oops">
+    Your browser could not start WebGL2.<br>Try a recent Chrome, Edge, Firefox or Safari.
+  </div>
+
+<script type="text/javascript">
+(() => {
+  "use strict";
+  const canvas = document.getElementById('stage');
+  const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, premultipliedAlpha:false, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+  if(!gl){ document.getElementById('oops').classList.add('show'); return; }
+
+  /* ----------------------------------------------------------------
+     Shaders
+  -----------------------------------------------------------------*/
+  const VERT = `#version 300 es
+  precision highp float;
+  const vec2 verts[3] = vec2[3]( vec2(-1.0,-1.0), vec2(3.0,-1.0), vec2(-1.0,3.0) );
+  void main(){ gl_Position = vec4(verts[gl_VertexID], 0.0, 1.0); }`;
+
+  const FRAG = `#version 300 es
+  precision highp float;
+  out vec4 outColor;
+
+  uniform vec2  u_res;
+  uniform float u_time;
+  uniform vec2  u_mouse;      // uv-space, aspect corrected
+  uniform vec2  u_mvel;       // smoothed mouse velocity
+  uniform float u_flow;
+  uniform float u_detail;
+  uniform float u_chaos;
+  uniform float u_glow;
+  uniform vec3  u_pA, u_pB, u_pC, u_pD;   // cosine palette params
+  uniform vec3  u_pulses[8];  // xy = uv pos, z = start time (<0 = inactive)
+
+  // ---- Ashima simplex noise (2D) ----
+  vec3 mod289(vec3 x){ return x - floor(x * (1.0/289.0)) * 289.0; }
+  vec2 mod289(vec2 x){ return x - floor(x * (1.0/289.0)) * 289.0; }
+  vec3 permute(vec3 x){ return mod289(((x*34.0)+1.0)*x); }
+  float snoise(vec2 v){
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+    vec2 i  = floor(v + dot(v, C.yy));
+    vec2 x0 = v - i + dot(i, C.xx);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0,0.0) : vec2(0.0,1.0);
+    vec4 x12 = x0.xyxy + C.xxzz; x12.xy -= i1;
+    i = mod289(i);
+    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+    m = m*m; m = m*m;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+  }
+
+  float fbm(vec2 p, float oct){
+    float v = 0.0, a = 0.55, tot = 0.0;
+    mat2 m = mat2(1.62, 1.18, -1.18, 1.62);
+    for(int i=0;i<7;i++){
+      if(float(i) >= oct) break;
+      v += a * snoise(p);
+      tot += a; p = m * p; a *= 0.52;
+    }
+    return v / max(tot, 0.0001);
+  }
+
+  vec3 palette(float t){
+    return u_pA + u_pB * cos(6.28318530718 * (u_pC * t + u_pD));
+  }
+
+  float hash21(vec2 p){
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  // starfield: sparse twinkling points sitting behind the gas
+  float stars(vec2 uv){
+    float acc = 0.0;
+    for(float s = 0.0; s < 2.0; s += 1.0){
+      float scale = 26.0 + s * 34.0;
+      vec2 g = uv * scale;
+      vec2 id = floor(g);
+      vec2 f = fract(g) - 0.5;
+      float h = hash21(id + s * 41.7);
+      if(h > 0.965){
+        vec2 off = (vec2(hash21(id+1.3), hash21(id+7.7)) - 0.5) * 0.7;
+        float d = length(f - off);
+        float tw = 0.55 + 0.45 * sin(u_time * (1.5 + h*3.0) + h * 30.0);
+        acc += smoothstep(0.06, 0.0, d) * tw * (0.5 + (h-0.965)*14.0);
+      }
+    }
+    return acc;
+  }
+
+  void main(){
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;
+    float aspect = u_res.x / u_res.y;
+
+    float oct = 2.0 + u_detail * 3.0;
+    float t = u_time * 0.045 * (0.35 + u_flow);
+
+    // interaction: stir the domain near the pointer, weighted by pointer speed
+    float md = length(uv - u_mouse);
+    float grip = exp(-md * 3.4);
+    vec2 stir = u_mvel * grip * 2.2;
+
+    vec2 p = uv * (1.0 + u_detail * 0.7) + stir;
+
+    // domain warping — the soul of the flow
+    vec2 q = vec2( fbm(p + vec2(0.0, 1.7) + t, oct),
+                   fbm(p + vec2(5.2, 1.3) - t, oct) );
+    vec2 r = vec2( fbm(p + (2.4 * u_chaos) * q + vec2(1.7, 9.2) + 0.12*t, oct),
+                   fbm(p + (2.4 * u_chaos) * q + vec2(8.3, 2.8) - 0.10*t, oct) );
+    float f = fbm(p + (1.8 + u_chaos) * r, oct);
+
+    // pulses: expanding rings of light that also distort the field
+    float pulseGlow = 0.0; float pulseWarp = 0.0;
+    for(int i=0;i<8;i++){
+      vec3 pu = u_pulses[i];
+      if(pu.z < 0.0) continue;
+      float age = u_time - pu.z;
+      if(age < 0.0 || age > 2.6) continue;
+      vec2 po = pu.xy;
+      float d = length(uv - po);
+      float radius = age * 0.85;
+      float ring = smoothstep(0.14, 0.0, abs(d - radius));
+      float life = 1.0 - age / 2.6;
+      pulseGlow += ring * life * life;
+      pulseWarp += ring * life * 0.5;
+    }
+    f += pulseWarp * 0.6;
+
+    // large-scale envelope: clusters gas into billowing clouds with big dark voids
+    float cloud = fbm(p * 0.42 + vec2(3.1, -1.4) + 0.12 * t, 4.0);
+    float envelope = smoothstep(-0.30, 0.45, cloud);
+
+    // soft volumetric gas: broad billows, no razor edges (keeps it gaseous, not metallic)
+    float depth = 0.5 + 0.5 * length(q);
+    float body = smoothstep(-0.15, 0.62, f + 0.12 * (length(q) - 0.5)) * envelope;
+    body = pow(body, 1.15);
+
+    // colour ramps with density: cool wispy edges -> hot bright cores
+    float temp = clamp(0.06 + 0.60 * body + 0.16 * cloud + 0.05 * depth + 0.04 * t, 0.0, 1.0);
+    vec3 emit = palette(temp);
+    float dens = body; // alias used by the starfield mask below
+
+    vec3 space = vec3(0.010, 0.012, 0.03);      // deep space
+    vec3 col = space;
+    col += emit * body * 1.7;
+    // gentle core bloom — soft and wide, never a hard line
+    col += emit * smoothstep(0.5, 1.0, body) * 0.7 * u_glow;
+
+    // pointer warmth — a soft, tinted glow that lifts the gas near the cursor
+    float heat = exp(-md * 5.5);
+    col += palette(0.72) * heat * heat * 0.42 * u_glow;
+    // click pulses — expanding rings of light
+    col += vec3(1.0, 0.96, 0.9) * pulseGlow * 1.4 * u_glow;
+
+    // stars only where the gas is thin/dark
+    float thin = smoothstep(0.30, 0.02, dens);
+    col += vec3(0.85, 0.9, 1.0) * stars(uv) * thin * (0.6 + 0.4 * u_glow);
+
+    // filmic-ish tone map + gamma (softened exposure keeps the cores colourful)
+    col *= 0.82;
+    col = (col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14);
+    col = pow(clamp(col, 0.0, 1.0), vec3(0.4545));
+
+    // pull saturation back up — the tone map desaturates the highlights
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    col = clamp(mix(vec3(lum), col, 1.32), 0.0, 1.0);
+
+    // vignette + subtle grain
+    float vig = smoothstep(1.45, 0.35, length(uv));
+    col *= 0.42 + 0.58 * vig;
+    float grain = (hash21(gl_FragCoord.xy + fract(u_time)) - 0.5) * 0.035;
+    col += grain;
+
+    outColor = vec4(col, 1.0);
+  }`;
+
+  /* ----------------------------------------------------------------
+     Program setup
+  -----------------------------------------------------------------*/
+  function compile(type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+      console.error(gl.getShaderInfoLog(s)); throw new Error('shader compile');
+    }
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(prog));
+    document.getElementById('oops').classList.add('show'); return;
+  }
+  gl.useProgram(prog);
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+
+  const U = {};
+  ['u_res','u_time','u_mouse','u_mvel','u_flow','u_detail','u_chaos','u_glow',
+   'u_pA','u_pB','u_pC','u_pD','u_pulses'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+  /* ----------------------------------------------------------------
+     Palettes (Inigo Quilez cosine palettes) — smoothly cross-faded
+  -----------------------------------------------------------------*/
+  const PALETTES = [
+    { name:'aurora',  a:[0.5,0.5,0.55], b:[0.5,0.5,0.5],  c:[1.0,1.0,1.0],  d:[0.30,0.55,0.75] },
+    { name:'ember',   a:[0.55,0.4,0.35],b:[0.5,0.35,0.32],c:[1.0,0.9,0.85], d:[0.00,0.12,0.20] },
+    { name:'oil',     a:[0.5,0.5,0.5],  b:[0.5,0.5,0.5],  c:[2.0,1.0,0.0],  d:[0.50,0.20,0.25] },
+    { name:'ice',     a:[0.46,0.5,0.6], b:[0.45,0.45,0.5],c:[1.0,1.0,1.05], d:[0.55,0.60,0.68] },
+    { name:'toxic',   a:[0.4,0.5,0.4],  b:[0.45,0.5,0.35],c:[1.1,0.9,1.0],  d:[0.10,0.45,0.20] },
+  ];
+  // swatch gradients for the UI
+  function css(p){
+    const stops=[];
+    for(let i=0;i<=4;i++){ const t=i/4;
+      const r=p.a[0]+p.b[0]*Math.cos(6.2832*(p.c[0]*t+p.d[0]));
+      const g=p.a[1]+p.b[1]*Math.cos(6.2832*(p.c[1]*t+p.d[1]));
+      const b=p.a[2]+p.b[2]*Math.cos(6.2832*(p.c[2]*t+p.d[2]));
+      stops.push(`rgb(${clamp255(r)},${clamp255(g)},${clamp255(b)})`);
+    }
+    return `linear-gradient(90deg, ${stops.join(',')})`;
+  }
+  const clamp255 = v => Math.max(0, Math.min(255, Math.round(v*255)));
+
+  const cur = { a:[...PALETTES[0].a], b:[...PALETTES[0].b], c:[...PALETTES[0].c], d:[...PALETTES[0].d] };
+  let target = PALETTES[0];
+  let paletteIdx = 0;
+
+  /* ----------------------------------------------------------------
+     State + interaction
+  -----------------------------------------------------------------*/
+  const S = { flow:1, detail:0.7, chaos:0.4, glow:1 };
+  let mouse = [0,0], mouseTarget = [0,0];
+  let mvel = [0,0], lastPtr = null;
+  const pulses = new Float32Array(24).fill(-1); // 8 * vec3, z=-1 inactive
+  let pulseHead = 0;
+  let paused = false, tSim = 0, lastFrame = performance.now();
+
+  let DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    const w = Math.floor(innerWidth * DPR), h = Math.floor(innerHeight * DPR);
+    canvas.width = w; canvas.height = h;
+    canvas.style.width = innerWidth+'px'; canvas.style.height = innerHeight+'px';
+    gl.viewport(0,0,w,h);
+  }
+  addEventListener('resize', resize); resize();
+
+  // pointer -> uv space (aspect corrected, matches shader)
+  function toUV(cx, cy){
+    const aspect = innerWidth / innerHeight;
+    return [ (cx/innerWidth - 0.5) * aspect, -(cy/innerHeight - 0.5) ];
+  }
+  function onMove(cx, cy){
+    mouseTarget = toUV(cx, cy);
+    if(lastPtr){
+      mvel[0] += (mouseTarget[0]-lastPtr[0]);
+      mvel[1] += (mouseTarget[1]-lastPtr[1]);
+    }
+    lastPtr = mouseTarget.slice();
+    fadeHint();
+  }
+  function emitPulse(cx, cy){
+    const uv = toUV(cx, cy);
+    pulses[pulseHead*3+0] = uv[0];
+    pulses[pulseHead*3+1] = uv[1];
+    pulses[pulseHead*3+2] = tSim;
+    pulseHead = (pulseHead+1) % 8;
+    fadeHint();
+  }
+
+  canvas.addEventListener('pointermove', e => onMove(e.clientX, e.clientY));
+  canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); emitPulse(e.clientX, e.clientY); lastPtr = toUV(e.clientX, e.clientY); });
+  canvas.addEventListener('pointerleave', () => { lastPtr = null; });
+
+  /* ----------------------------------------------------------------
+     HUD wiring
+  -----------------------------------------------------------------*/
+  function bindSlider(id, key, fmt){
+    const el = document.getElementById(id);
+    const out = document.getElementById('v-'+id);
+    const paint = () => {
+      const min=+el.min, max=+el.max;
+      el.style.setProperty('--fill', ((el.value-min)/(max-min)*100)+'%');
+      out.textContent = (fmt||(v=>(+v).toFixed(1)))(el.value);
+    };
+    el.addEventListener('input', () => { S[key] = +el.value; paint(); });
+    paint();
+  }
+  bindSlider('flow','flow'); bindSlider('detail','detail');
+  bindSlider('chaos','chaos'); bindSlider('glow','glow');
+
+  const palWrap = document.getElementById('palettes');
+  PALETTES.forEach((p,i) => {
+    const b = document.createElement('div');
+    b.className = 'sw' + (i===0?' on':'');
+    b.style.background = css(p); b.title = p.name;
+    b.addEventListener('click', () => setPalette(i));
+    palWrap.appendChild(b);
+  });
+  function setPalette(i){
+    paletteIdx = i; target = PALETTES[i];
+    [...palWrap.children].forEach((c,ci)=>c.classList.toggle('on', ci===i));
+  }
+
+  document.getElementById('rand').addEventListener('click', () => {
+    const set = (id,key,v) => { const el=document.getElementById(id); el.value=v; el.dispatchEvent(new Event('input')); };
+    set('flow','flow',(Math.random()*2.4+0.3).toFixed(2));
+    set('detail','detail',(Math.random()*1.6+0.4).toFixed(2));
+    set('chaos','chaos',(Math.random()*1.8+0.2).toFixed(2));
+    set('glow','glow',(Math.random()*1.3+0.6).toFixed(2));
+    setPalette(Math.floor(Math.random()*PALETTES.length));
+  });
+  const pauseBtn = document.getElementById('pause');
+  pauseBtn.addEventListener('click', () => { paused=!paused; pauseBtn.textContent = paused?'Play':'Pause'; if(!paused) lastFrame=performance.now(); });
+
+  const hud = document.getElementById('hud');
+  const toggle = document.getElementById('toggle');
+  function toggleHud(){ hud.classList.toggle('hidden'); toggle.textContent = hud.classList.contains('hidden')?'✧':'✦'; }
+  toggle.addEventListener('click', toggleHud);
+
+  function goFullscreen(){ const d=document; if(!d.fullscreenElement){ (d.documentElement.requestFullscreen||(()=>{})).call(d.documentElement); } else { d.exitFullscreen&&d.exitFullscreen(); } }
+  document.getElementById('full').addEventListener('click', goFullscreen);
+
+  // save the current frame as a PNG wallpaper (works thanks to preserveDrawingBuffer)
+  document.getElementById('save').addEventListener('click', () => {
+    try {
+      const a = document.createElement('a');
+      a.download = 'nebula-' + Date.now() + '.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    } catch(err){ console.warn('save failed', err); }
+  });
+
+  addEventListener('keydown', e => {
+    if(e.key==='h'||e.key==='H') toggleHud();
+    else if(e.key==='f'||e.key==='F') goFullscreen();
+    else if(e.key===' '){ e.preventDefault(); pauseBtn.click(); }
+    else if(e.key==='r'||e.key==='R') document.getElementById('rand').click();
+  });
+
+  const hint = document.getElementById('hint');
+  let hintTimer = setTimeout(()=>hint.classList.add('fade'), 5200);
+  function fadeHint(){ clearTimeout(hintTimer); hintTimer=setTimeout(()=>hint.classList.add('fade'), 2600); }
+
+  /* ----------------------------------------------------------------
+     Render loop
+  -----------------------------------------------------------------*/
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function render(now){
+    const dt = Math.min((now - lastFrame)/1000, 0.05);
+    lastFrame = now;
+    if(!paused) tSim += dt;
+
+    // ease palette toward target
+    for(let k=0;k<3;k++){
+      cur.a[k]=lerp(cur.a[k],target.a[k],0.05);
+      cur.b[k]=lerp(cur.b[k],target.b[k],0.05);
+      cur.c[k]=lerp(cur.c[k],target.c[k],0.05);
+      cur.d[k]=lerp(cur.d[k],target.d[k],0.05);
+    }
+    // ease pointer + decay velocity
+    mouse[0]=lerp(mouse[0],mouseTarget[0],0.12);
+    mouse[1]=lerp(mouse[1],mouseTarget[1],0.12);
+    mvel[0]*=0.90; mvel[1]*=0.90;
+
+    gl.uniform2f(U.u_res, canvas.width, canvas.height);
+    gl.uniform1f(U.u_time, tSim);
+    gl.uniform2f(U.u_mouse, mouse[0], mouse[1]);
+    gl.uniform2f(U.u_mvel, mvel[0], mvel[1]);
+    gl.uniform1f(U.u_flow, S.flow);
+    gl.uniform1f(U.u_detail, S.detail);
+    gl.uniform1f(U.u_chaos, S.chaos);
+    gl.uniform1f(U.u_glow, S.glow);
+    gl.uniform3f(U.u_pA, cur.a[0],cur.a[1],cur.a[2]);
+    gl.uniform3f(U.u_pB, cur.b[0],cur.b[1],cur.b[2]);
+    gl.uniform3f(U.u_pC, cur.c[0],cur.c[1],cur.c[2]);
+    gl.uniform3f(U.u_pD, cur.d[0],cur.d[1],cur.d[2]);
+    gl.uniform3fv(U.u_pulses, pulses);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(render);
+  }
+  requestAnimationFrame(render);
+
+  // park the pointer off-screen so there's no heat blob until you actually move
+  mouseTarget = [-99, -99]; mouse = [-99, -99];
+})();
+</script>
+</body>
+</html>
