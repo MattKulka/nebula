@@ -8,8 +8,11 @@ An interactive, GPU-rendered cosmic nebula that flows, glows, and reacts to you 
 
 ![NEBULA](docs/hero.jpg)
 
+<img src="docs/demo.gif" width="640" alt="NEBULA drifting in motion"><br>
+<sub><i>every pixel is computed live in a fragment shader — the field never stops drifting</i></sub>
+
 <!-- LIVE_DEMO -->
-### ▶ [**Launch NEBULA**](https://nebula-lyart-psi.vercel.app)
+### ▶ [**Launch the live demo**](https://nebula-lyart-psi.vercel.app)
 
 </div>
 
@@ -20,6 +23,18 @@ An interactive, GPU-rendered cosmic nebula that flows, glows, and reacts to you 
 NEBULA renders a full-screen field of interstellar gas entirely on the GPU. It isn't a video or a texture — every pixel is computed live in a fragment shader from layered, domain-warped noise, so the clouds are always drifting and never repeat. Dense regions ignite into glowing cores, thin regions fall away into deep space where a starfield twinkles through.
 
 Then it responds to you: **drag to stir** the gas, **click to send pulses** of light rippling outward, and **hover** to breathe warmth into the clouds.
+
+## Palettes
+
+Five cosine-gradient palettes, each cross-faded smoothly when you switch:
+
+| aurora | oil |
+| :--: | :--: |
+| ![aurora](docs/aurora.jpg) | ![oil](docs/oil.jpg) |
+| **toxic** | **ice** |
+| ![toxic](docs/toxic.jpg) | ![ice](docs/ice.jpg) |
+
+<sub>(plus **ember** — a colder, ashen tone) · every frame above is a real screenshot straight from the shader.</sub>
 
 ## Features
 
@@ -46,6 +61,14 @@ Then it responds to you: **drag to stir** the gas, **click to send pulses** of l
 | **Fullscreen** | Go immersive |
 
 Keyboard: `H` hide/show the panel · `F` fullscreen · `Space` pause · `R` randomize.
+
+<div align="center">
+
+![NEBULA reacting to the pointer](docs/interact.jpg)
+
+<sub><i>hovering pours warmth into the gas; clicking sends a light-pulse rippling outward</i></sub>
+
+</div>
 
 ## How it works
 

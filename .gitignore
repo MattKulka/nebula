@@ -11,3 +11,4 @@
 # logs / deps (none expected — this is a dependency-free static site)
 node_modules/
 *.log
+.vercel
